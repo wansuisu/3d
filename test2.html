@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+        body {
+            margin: 0px;
+            overflow: hidden;
+        }
+        #example {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/x-glsl" id="vertex">
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+	vNormal = normalize( normalMatrix * normal );
+	vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+	vViewPosition = -mvPosition.xyz;
+
+}
+</script>
+<script type="text/x-glsl" id="fragment">
+uniform vec3 uMaterialColor;
+
+uniform vec3 uDirLightPos;
+uniform vec3 uDirLightColor;
+
+uniform float uKd;
+uniform float uBorder;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+	// compute direction to light
+	vec4 lDirection = viewMatrix * vec4( uDirLightPos, 0.0 );
+	vec3 lVector = normalize( lDirection.xyz );
+
+	// diffuse: N * L. Normal must be normalized, since it's interpolated.
+	vec3 normal = normalize( vNormal );
+
+	// Student: check the diffuse dot product against uBorder and adjust
+	// this diffuse value accordingly.
+    float diffuse = max( dot(normal, lVector), 0.0 );
+    if(diffuse>uBorder){
+        diffuse = 1.0;
+    } else {
+        diffuse = 0.5;
+    }
+
+	gl_FragColor = vec4( uKd * uMaterialColor * uDirLightColor * diffuse, 1.0 );
+}
+</script>
+
+<div id="example"></div>
+
+<script src="js/three.min.js"></script>
+<script src="js/libs/DeviceOrientationControls.js"></script>
+<script src="js/libs/OrbitControls.js"></script>
+<script src="js/libs/StereoEffect.js"></script>
+<script src="js/libs/OBJLoader.js"></script>
+
+<script>
+    var camera, scene, renderer;
+    var effect, controls;
+    var element, container;
+    var planes = [], duckies = [];
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+
+    var clock = new THREE.Clock();
+
+    init();
+    animate();
+
+    function init() {
+        renderer = new THREE.WebGLRenderer();
+        element = renderer.domElement;
+        container = document.getElementById('example');
+        container.appendChild(element);
+
+        effect = new THREE.StereoEffect(renderer);
+
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 1, 700);
+        camera.position.set(0, 10, 0);
+        scene.add(camera);
+
+        controls = new THREE.OrbitControls( camera, element );
+		controls.target.set(
+			camera.position.x + 0.1,
+			camera.position.y,
+			camera.position.z
+		  );
+        controls.enableZoom = true;
+        controls.zoomSpeed = 5.0;
+
+        // Our preferred controls via DeviceOrientation
+        function setOrientationControls(e) {
+            if (!e.alpha) {
+                alert(e.alpha);
+                return;
+            }
+            controls = new THREE.DeviceOrientationControls(camera, true);
+            controls.connect();
+            controls.update();
+            element.addEventListener('click', fullscreen, false);
+            window.removeEventListener('deviceorientation', setOrientationControls, true);
+        }
+        window.addEventListener('deviceorientation', setOrientationControls, true);
+
+
+
+        var directionalLight = new THREE.DirectionalLight( 0xFFBF80, 0.8 );
+        directionalLight.position.set( 0, 1, 0 );
+        scene.add( directionalLight );
+
+//        var light = new THREE.AmbientLight( 0xFFBF80 ); // soft white light
+//        scene.add( light );
+
+        var materialColor = new THREE.Color();
+        materialColor.setRGB(1.0, 1.0, 1.0);
+        var phongMaterial = createShaderMaterial("phongDiffuse", directionalLight);
+
+        phongMaterial.uniforms.uMaterialColor.value.copy(materialColor);
+        phongMaterial.side = THREE.DoubleSide;
+
+        var manager = new THREE.LoadingManager();
+        manager.onProgress = function ( item, loaded, total ) {
+
+            console.log( item, loaded, total );
+
+        };
+
+        var loader = new THREE.OBJLoader( manager );
+
+        var onProgress = function ( xhr ) {
+            if ( xhr.lengthComputable ) {
+                var percentComplete = xhr.loaded / xhr.total * 100;
+                console.log( Math.round(percentComplete, 2) + '% downloaded' );
+            }
+        };
+
+        var onError = function ( xhr ) {
+        };
+        for(var i=0; i<5; i++) {
+            loader.load('model/shuttle.obj', function (object) {
+
+                object.traverse(function (child) {
+
+                    if (child instanceof THREE.Mesh) {
+
+                        child.material = phongMaterial;
+                        var edge = new THREE.EdgesHelper(child, 0x000000, 20);
+                        scene.add(edge);
+
+                    }
+
+                });
+
+                object.rotation.x = -90 * Math.PI / 180;
+
+                object.position.x = Math.random() * 500;
+                object.position.y = Math.random() * 500;
+                object.position.z = Math.random() * 500;
+
+                object.scale.x = object.scale.y = object.scale.z = Math.random() * 10 + 1;
+                planes.push(object);
+                scene.add(object);
+
+
+
+            }, onProgress, onError);
+        }
+
+        for(var i=0; i<5; i++) {
+            loader.load('model/ducky.obj', function (object) {
+
+                object.traverse(function (child) {
+
+                    if (child instanceof THREE.Mesh) {
+
+                        child.material = phongMaterial;
+                        var edge = new THREE.EdgesHelper(child, 0x000000, 20);
+                        scene.add(edge);
+
+                    }
+
+                });
+
+                object.position.x = Math.random() * 500;
+                object.position.y = Math.random() * 500;
+                object.position.z = Math.random() * 500;
+
+                object.scale.x = object.scale.y = object.scale.z = Math.random() * 0.1 + 0.1;
+                duckies.push(object);
+                scene.add(object);
+
+
+
+            }, onProgress, onError);
+        }
+
+        var materials = [
+
+            new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'img/skybox/px.jpg' ), overdraw: 0.5 } ), // right
+            new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'img/skybox/nx.jpg' ), overdraw: 0.5 } ), // left
+            new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'img/skybox/py.jpg' ), overdraw: 0.5 } ), // top
+            new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'img/skybox/ny.jpg' ), overdraw: 0.5 } ), // bottom
+            new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'img/skybox/pz.jpg' ), overdraw: 0.5 } ), // back
+            new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'img/skybox/nz.jpg' ), overdraw: 0.5 } )  // front
+
+        ];
+
+        var skyMesh = new THREE.Mesh( new THREE.BoxGeometry( 500, 500, 500 ), new THREE.MeshFaceMaterial( materials ) );
+        skyMesh.scale.x = - 1;
+        scene.add( skyMesh );
+
+
+        window.addEventListener('resize', resize, false);
+        setTimeout(resize, 1);
+    }
+
+    function resize() {
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(width, height);
+        effect.setSize(width, height);
+    }
+
+    function loadShader(shadertype) {
+        return document.getElementById(shadertype).textContent;
+    }
+
+    function createShaderMaterial(id, light) {
+        var shaderTypes = {
+            'phongDiffuse' : {
+
+                uniforms: {
+
+                    "uDirLightPos":	{ type: "v3", value: new THREE.Vector3(1, 0, 0) },
+                    "uDirLightColor": { type: "c", value: new THREE.Color( 0xFFBF80 ) },
+
+                    "uMaterialColor": { type: "c", value: new THREE.Color( 0xFFFFFF ) },
+
+                    uKd: {
+                        type: "f",
+                        value: 0.7
+                    },
+                    uBorder: {
+                        type: "f",
+                        value: 0.1
+                    }
+                }
+            }
+        };
+
+        var shader = shaderTypes[id];
+
+        var u = THREE.UniformsUtils.clone(shader.uniforms);
+        // this line will load a shader that has an id of "vertex" from the .html file
+        var vs = loadShader("vertex");
+        // this line will load a shader that has an id of "fragment" from the .html file
+        var fs = loadShader("fragment");
+
+        //var creatureImage = THREE.ImageUtils
+        //    .loadTexture('http://www.how-to-draw-funny-cartoons.com/image-files/cartoon-bear-7.gif');
+        //creatureImage.magFilter = THREE.NearestFilter;
+        //creatureImage.minFilter = THREE.NearestFilter;
+
+        //var img = new Image();
+        //img.crossOrigin = 'anonymous';
+        //img.url = 'http://www.how-to-draw-funny-cartoons.com/image-files/cartoon-bear-7.gif';
+        //var texture = new THREE.Texture(img);
+        //texture.needsUpdate = true;
+        ////img.onLoad.listen((e)
+        ////{
+        ////    gl.bindTexture(webGL.TEXTURE_2D, texture);
+        ////});
+        //texture.generateMipmaps = false;
+        //texture.magFilter = THREE.NearestFilter;
+        //texture.minFilter = THREE.NearestFilter;
+
+        var material = new THREE.ShaderMaterial({
+            uniforms: u,
+            vertexShader: vs,
+            fragmentShader: fs
+        });
+
+        material.uniforms.uDirLightPos.value = light.position;
+        material.uniforms.uDirLightColor.value = light.color;
+
+        return material;
+
+    }
+
+    function update(dt) {
+        resize();
+
+        camera.updateProjectionMatrix();
+
+        controls.update(dt);
+    }
+
+    function render() {
+        var timer = 0.0001 * Date.now();
+        for ( var i = 0, il = planes.length; i < il; i ++ ) {
+
+            var plane = planes[ i ];
+            plane.position.x = 100 * Math.cos( timer + i );
+            plane.position.y = 100 * Math.sin( timer + i * 1.1 );
+
+        }
+
+        for (var i = 0, il = duckies.length; i < il; i ++) {
+
+            var ducky = duckies[ i ];
+            ducky.position.x = 100 * Math.cos( timer + i );
+            ducky.position.y = 100 * Math.sin( timer + i * 1.1 );
+        }
+
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+        effect.render(scene, camera);
+        //      renderer.render(scene, camera);
+    }
+
+    function animate() {
+        requestAnimationFrame( animate );
+
+        controls.update();
+        render();
+    }
+
+    function fullscreen() {
+        if (container.requestFullscreen) {
+            container.requestFullscreen();
+        } else if (container.msRequestFullscreen) {
+            container.msRequestFullscreen();
+        } else if (container.mozRequestFullScreen) {
+            container.mozRequestFullScreen();
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen();
+        }
+    }
+</script>
+</body>
+</html>
