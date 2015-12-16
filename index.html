@@ -117,7 +117,7 @@ void main() {
             controls.connect();
             controls.update();
             element.addEventListener('click', fullscreen, false);
-            window.removeEventListener('deviceorientation', setOrientationControls);
+            window.removeEventListener('deviceorientation', setOrientationControls, true);
         }
         window.addEventListener('deviceorientation', setOrientationControls, true);
 
@@ -130,12 +130,12 @@ void main() {
 //        var light = new THREE.AmbientLight( 0xFFBF80 ); // soft white light
 //        scene.add( light );
 
-        var materialColor = new THREE.Color();
-        materialColor.setRGB(1.0, 1.0, 1.0);
-        var phongMaterial = createShaderMaterial("phongDiffuse", directionalLight);
+        var planeMaterialColor = new THREE.Color();
+        planeMaterialColor.setRGB(1.0, 1.0, 1.0);
+        var planePhongMaterial = createShaderMaterial("phongDiffuse", directionalLight);
 
-        phongMaterial.uniforms.uMaterialColor.value.copy(materialColor);
-        phongMaterial.side = THREE.DoubleSide;
+        planePhongMaterial.uniforms.uMaterialColor.value.copy(planeMaterialColor);
+        planePhongMaterial.side = THREE.DoubleSide;
 
         var manager = new THREE.LoadingManager();
         manager.onProgress = function ( item, loaded, total ) {
@@ -162,7 +162,7 @@ void main() {
 
                     if (child instanceof THREE.Mesh) {
 
-                        child.material = phongMaterial;
+                        child.material = planePhongMaterial;
                         var edge = new THREE.EdgesHelper(child, 0x000000, 20);
                         scene.add(edge);
 
@@ -185,6 +185,12 @@ void main() {
             }, onProgress, onError);
         }
 
+        var duckyMaterialColor = new THREE.Color();
+        duckyMaterialColor.setRGB(1.0, 1.0, 0.0);
+        var duckyPhongMaterial = createShaderMaterial("phongDiffuse", directionalLight);
+
+        duckyPhongMaterial.uniforms.uMaterialColor.value.copy(duckyMaterialColor);
+        duckyPhongMaterial.side = THREE.DoubleSide;
         for(var i=0; i<5; i++) {
             loader.load('model/ducky.obj', function (object) {
 
@@ -192,7 +198,7 @@ void main() {
 
                     if (child instanceof THREE.Mesh) {
 
-                        child.material = phongMaterial;
+                        child.material = duckyPhongMaterial;
                         var edge = new THREE.EdgesHelper(child, 0x000000, 20);
                         scene.add(edge);
 
@@ -315,7 +321,7 @@ void main() {
         controls.update(dt);
     }
 
-    function render(dt) {
+    function render() {
         var timer = 0.0001 * Date.now();
         for ( var i = 0, il = planes.length; i < il; i ++ ) {
 
@@ -337,19 +343,12 @@ void main() {
         effect.render(scene, camera);
         //      renderer.render(scene, camera);
     }
-function update(dt) {
-      resize();
-
-      camera.updateProjectionMatrix();
-
-      controls.update(dt);
-    }
 
     function animate() {
         requestAnimationFrame( animate );
 
-        update(clock.getDelta());
-      render(clock.getDelta());
+        controls.update();
+        render();
     }
 
     function fullscreen() {
